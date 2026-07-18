@@ -133,6 +133,7 @@ tbody tr:hover td{background:var(--surface2);}
 .param-ar input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--ink);font-size:0.88rem;padding:8px 12px;width:100%;outline:none;}
 .param-ar input:focus{border-color:var(--accent);}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -145,6 +146,7 @@ tbody tr:hover td{background:var(--surface2);}
 <nav>
   <button class="tab-btn active" onclick="switchTab('avis')" id="tab-avis">⭐ Avis Google</button>
   <button class="tab-btn" onclick="switchTab('masse')" id="tab-masse">💰 Masse salariale</button>
+  <button class="tab-btn" onclick="switchTab('lyleoo')" id="tab-lyleoo">🔵 Lyleoo</button>
   <button class="tab-btn" onclick="switchTab('param')" id="tab-param">⚙️ Paramétrage</button>
 </nav>
 
@@ -175,19 +177,18 @@ tbody tr:hover td{background:var(--surface2);}
 <div class="panel" id="panel-masse">
   <div class="toolbar">
     <h2>Masse salariale — T12 Renta</h2>
+    <button class="btn btn-secondary" onclick="resetMasse()" style="color:var(--red);border-color:var(--red);">↺ Initialiser</button>
     <button class="btn btn-secondary" onclick="exportMasseCSV()" id="btnExportMasse" disabled>⬇ CSV</button>
   </div>
 
-  <div class="dropzone" id="csvDropzone" onclick="document.getElementById('csvInput').click()">
-    <input type="file" id="csvInput" accept=".csv" onchange="importCSV(this.files[0])">
-    <div class="drop-icon">📂</div>
-    <div class="drop-title" id="csvDropTitle">Glisser le CSV T12 ici pour mettre à jour</div>
-    <div class="drop-sub">ou cliquer — fonctionne 100% en local, pas besoin d'internet</div>
+  <div class="dropzone" id="csvDropzone" onclick="document.getElementById('fileInput').click()">
+    <input type="file" id="fileInput" accept=".xlsx,.csv" onchange="importFile(this.files[0])">
+    <div class="drop-icon">📊</div>
+    <div class="drop-title" id="csvDropTitle">Glisser le fichier Excel T12 figé ici</div>
+    <div class="drop-sub">ou cliquer · .xlsx · Chrome en local ou GitHub Pages</div>
   </div>
-
-  <div class="info-band">
-    <span>ℹ️</span>
-    <div><strong>Workflow mensuel :</strong> envoyer le PDF T12 dans cette conversation Claude.ai → CSV généré → glisser ici → tableau mis à jour instantanément.</div>
+    <div class="drop-title">Données T12 Juin 2026 chargées</div>
+    <div class="drop-sub">Mise à jour mensuelle : envoyer le fichier Excel dans Claude.ai</div>
   </div>
 
   <div class="status" id="statusMasse"><div class="spinner"></div><span id="statusMasseText"></span></div>
@@ -204,6 +205,41 @@ tbody tr:hover td{background:var(--surface2);}
     </table>
   </div>
   <div class="last-update" id="masseDate"></div>
+</div>
+
+<!-- ══════════ LYLEOO ══════════ -->
+<div class="panel" id="panel-lyleoo">
+  <div class="toolbar">
+    <h2>Lyleoo — Dossiers mutuelle</h2>
+    <button class="btn btn-secondary" onclick="resetLyleoo()" style="color:var(--red);border-color:var(--red);">↺ Initialiser</button>
+    <button class="btn btn-secondary" onclick="exportLyleooCSV()" id="btnExportLyleoo" disabled>⬇ CSV</button>
+  </div>
+
+  <div style="margin-bottom:14px;">
+    <label style="font-size:0.78rem;color:var(--muted);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em;">Coller les données Lyleoo ici (Cmd+V)</label>
+    <textarea id="lyleooInput" placeholder="Sélectionner les données sur Lyleoo → Cmd+C → coller ici…" style="width:100%;height:130px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--ink);font-size:0.82rem;padding:12px;resize:vertical;font-family:monospace;outline:none;"></textarea>
+    <button class="btn btn-primary" onclick="parseLyleoo()" style="margin-top:8px;">▶ Analyser</button>
+  </div>
+
+  <div class="status" id="statusLyleoo"><div class="spinner"></div><span id="statusLyleooText"></span></div>
+
+  <div class="cards">
+    <div class="card"><div class="card-label">Magasins</div><div class="card-val" id="lyleoCount">—</div></div>
+    <div class="card"><div class="card-label">Dossiers créés</div><div class="card-val" id="lyleoCreés">—</div></div>
+    <div class="card"><div class="card-label">Dossiers validés</div><div class="card-val c-green" id="lyleoValidés">—</div></div>
+    <div class="card"><div class="card-label">Dossiers refusés</div><div class="card-val c-red" id="lyleoRefusés">—</div></div>
+    <div class="card" style="flex:2;min-width:200px;"><div class="card-label">⚡ Express — magasins concernés</div><div class="card-val" id="lyleoExpress" style="font-size:0.85rem;color:var(--orange);">—</div></div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>#</th><th>Code</th><th>Magasin</th><th>Créés</th><th>Soumis</th><th>Validés ↓</th><th>Refusés</th><th>Taux valid.</th>
+      </tr></thead>
+      <tbody id="lyleooBody"><tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🔵</div>Collez les données Lyleoo et cliquez sur Analyser</div></td></tr></tbody>
+    </table>
+  </div>
+  <div class="last-update" id="lyleooDate"></div>
 </div>
 
 <!-- ══════════ PARAMÉTRAGE ══════════ -->
@@ -278,30 +314,30 @@ const AVIS_SNAPSHOT = [
   {code:1111,rating:4.7,count:201},
 ];
 
-// MASSE T12 mai 2026 — valeurs décimales (0.2743 = 27,43%)
+// MASSE T12 juin 2026 — source : T12_RENTASAL_France_202606_fige_.xlsx
 const MASSE_SNAPSHOT = {
-  periode:"Mai 2026", date_source:"11/06/2026",
-  secteur:{renta_annee:0.3261, renta_mois:0.3620},
+  periode:"Juin 2026", date_source:"17/07/2026",
+  secteur:{renta_annee:0.3352, renta_mois:0.3238},
   stores:[
-    {code:1009,renta_annee:0.2743,renta_mois:0.2911},
-    {code:1011,renta_annee:0.3050,renta_mois:0.4716},
-    {code:1017,renta_annee:0.3101,renta_mois:0.2938},
-    {code:1018,renta_annee:0.5120,renta_mois:0.7862},
-    {code:1024,renta_annee:0.3908,renta_mois:0.3820},
-    {code:1032,renta_annee:0.2977,renta_mois:0.3057},
-    {code:1038,renta_annee:0.3341,renta_mois:0.4028},
-    {code:1045,renta_annee:0.3333,renta_mois:0.2822},
-    {code:1060,renta_annee:0.3394,renta_mois:0.3776},
-    {code:1062,renta_annee:0.3639,renta_mois:0.4045},
-    {code:1064,renta_annee:0.3530,renta_mois:0.3886},
-    {code:1068,renta_annee:0.3957,renta_mois:0.5075},
-    {code:1073,renta_annee:0.3325,renta_mois:0.3641},
-    {code:1077,renta_annee:0.2060,renta_mois:0.2340},
-    {code:1079,renta_annee:0.3474,renta_mois:0.3814},
-    {code:1083,renta_annee:0.3808,renta_mois:0.5398},
-    {code:1090,renta_annee:0.2700,renta_mois:0.2708},
-    {code:1093,renta_annee:0.2826,renta_mois:0.2980},
-    {code:1111,renta_annee:0.4793,renta_mois:0.5702},
+    {code:1009,renta_annee:0.2704,renta_mois:0.1779},
+    {code:1011,renta_annee:0.2859,renta_mois:0.2471},
+    {code:1017,renta_annee:0.3189,renta_mois:0.3311},
+    {code:1018,renta_annee:0.5244,renta_mois:0.5738},
+    {code:1024,renta_annee:0.4121,renta_mois:0.4068},
+    {code:1032,renta_annee:0.2776,renta_mois:0.2469},
+    {code:1038,renta_annee:0.2977,renta_mois:0.2236},
+    {code:1045,renta_annee:0.3413,renta_mois:0.4059},
+    {code:1060,renta_annee:0.3407,renta_mois:0.2569},
+    {code:1062,renta_annee:0.3875,renta_mois:0.4846},
+    {code:1064,renta_annee:0.3770,renta_mois:0.4204},
+    {code:1068,renta_annee:0.4087,renta_mois:0.4645},
+    {code:1073,renta_annee:0.3154,renta_mois:0.2825},
+    {code:1077,renta_annee:0.2311,renta_mois:0.2464},
+    {code:1079,renta_annee:0.3792,renta_mois:0.3899},
+    {code:1083,renta_annee:0.3773,renta_mois:0.3451},
+    {code:1090,renta_annee:0.2833,renta_mois:0.2986},
+    {code:1093,renta_annee:0.3014,renta_mois:0.3196},
+    {code:1111,renta_annee:0.5142,renta_mois:0.5305},
   ]
 };
 
@@ -395,6 +431,90 @@ function exportAvisCSV() {
 }
 
 // ══════════════════════════════════
+// IMPORT EXCEL MASSE SALARIALE
+// ══════════════════════════════════
+const csvDz = document.getElementById('csvDropzone');
+csvDz.addEventListener('dragover', e => { e.preventDefault(); csvDz.classList.add('drag-over'); });
+csvDz.addEventListener('dragleave', () => csvDz.classList.remove('drag-over'));
+csvDz.addEventListener('drop', e => { e.preventDefault(); csvDz.classList.remove('drag-over'); const f = e.dataTransfer.files[0]; if(f) importFile(f); });
+
+function importFile(file) {
+  if(!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(ext === 'xlsx' || ext === 'xls') importExcel(file);
+  else { document.getElementById('statusMasseText').textContent = "⚠ Format non supporté — utiliser le fichier .xlsx T12 figé"; document.getElementById('statusMasse').classList.add('visible'); }
+}
+
+function importExcel(file) {
+  const status = document.getElementById('statusMasse');
+  const statusText = document.getElementById('statusMasseText');
+  status.classList.add('visible');
+  statusText.textContent = 'Lecture Excel…';
+  document.getElementById('csvDropTitle').textContent = '📊 ' + file.name;
+
+  if(typeof XLSX === 'undefined') {
+    statusText.textContent = "⚠ SheetJS non chargé — ouvrir avec Chrome ou passer en ligne (GitHub Pages)";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      const sheetCumul = wb.SheetNames.find(n => /cumul/i.test(n)) || wb.SheetNames[0];
+      const sheetMois  = wb.SheetNames.find(n => /period|mensuel/i.test(n)) || wb.SheetNames[1];
+      const arName = (HUB_AR || 'CYRIL GAUTHIER').toUpperCase();
+
+      function extractSheet(sname) {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sname], {header:1, defval:null});
+        const stores = {}; let secteur = null;
+        rows.forEach(row => {
+          if(!row || row.length < 10) return;
+          const ar = row[5] ? String(row[5]).toUpperCase().trim() : '';
+          if(ar !== arName) return;
+          const numRaw = row[2] ? String(row[2]).replace(/[^0-9]/g, '') : '';
+          const renta = typeof row[9] === 'number' ? row[9] : null;
+          if((!numRaw || row[2] === 'CG') && renta !== null) { secteur = renta; return; }
+          if(row[3] && /mobile/i.test(String(row[3]))) return;
+          const code = parseInt(numRaw);
+          if(!isNaN(code) && renta !== null) stores[code] = renta;
+        });
+        return { stores, secteur };
+      }
+
+      const cumul   = extractSheet(sheetCumul);
+      const mensuel = extractSheet(sheetMois);
+      const parsed  = [];
+
+      for(const [code, rentaAnnee] of Object.entries(cumul.stores)) {
+        const c = parseInt(code);
+        const store = STORES.find(s => s.code === c);
+        if(!store) continue;
+        parsed.push({ code: c, name: store.name, renta_annee: rentaAnnee, renta_mois: mensuel.stores[c] || null });
+      }
+
+      if(!parsed.length) throw new Error('Aucun magasin trouvé — vérifiez que le nom AR correspond dans Paramétrage');
+
+      masseSecteur = { renta_annee: cumul.secteur, renta_mois: mensuel.secteur };
+      masseData = [...parsed].sort((a, b) => a.code - b.code);
+      const display = [...parsed].sort((a, b) => a.renta_annee - b.renta_annee);
+      renderMasseTable(display, masseSecteur);
+      updateMasseCards(parsed, file.name.replace(/\.xlsx?$/i, ''), masseSecteur);
+      document.getElementById('btnExportMasse').disabled = false;
+      document.getElementById('masseDate').textContent = 'Importé le ' + new Date().toLocaleDateString('fr-FR') + ' — ' + file.name;
+      statusText.textContent = '✓ ' + parsed.length + ' magasins extraits.';
+      setTimeout(() => status.classList.remove('visible'), 2500);
+
+    } catch(err) {
+      statusText.textContent = '⚠ ' + err.message;
+      document.getElementById('csvDropTitle').textContent = 'Glisser le fichier Excel T12 figé ici';
+    }
+  };
+  reader.onerror = () => { statusText.textContent = '⚠ Erreur de lecture du fichier'; };
+  reader.readAsArrayBuffer(file);
+}
+
+// ══════════════════════════════════
 // MASSE — tri renta cumul croissant (meilleur = plus bas)
 // ══════════════════════════════════
 function initMasse() {
@@ -449,6 +569,20 @@ function updateMasseCards(data,periode,secteur) {
   document.getElementById('massePeriode').textContent=periode||'—';
 }
 
+function resetMasse() {
+  masseData = []; masseSecteur = null;
+  document.getElementById('masseBody').innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">💰</div>Glissez le fichier Excel T12 figé pour charger les données</div></td></tr>';
+  document.getElementById('masseCount').textContent = '—';
+  document.getElementById('masseAvgYear').textContent = '—';
+  document.getElementById('masseAvgMonth').textContent = '—';
+  document.getElementById('massePeriode').textContent = '—';
+  document.getElementById('masseDate').textContent = '';
+  document.getElementById('btnExportMasse').disabled = true;
+  document.getElementById('statusMasse').classList.remove('visible');
+  document.getElementById('csvDropTitle').textContent = 'Glisser le fichier Excel T12 figé ici';
+  if(document.getElementById('fileInput')) document.getElementById('fileInput').value = '';
+}
+
 function exportMasseCSV() {
   const sorted=[...masseData].sort((a,b)=>a.code-b.code);
   const now=new Date().toLocaleDateString('fr-FR');
@@ -466,85 +600,6 @@ function exportMasseCSV() {
 // IMPORT CSV MASSE SALARIALE
 // Format attendu (généré par Claude) :
 // Code magasin;Nom magasin;Renta cumul 2026 (%);Renta mois (%);Date export
-// ══════════════════════════════════
-const csvDz=document.getElementById('csvDropzone');
-csvDz.addEventListener('dragover',e=>{e.preventDefault();csvDz.classList.add('drag-over');});
-csvDz.addEventListener('dragleave',()=>csvDz.classList.remove('drag-over'));
-csvDz.addEventListener('drop',e=>{e.preventDefault();csvDz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)importCSV(f);});
-
-function importCSV(file) {
-  if(!file)return;
-  const status=document.getElementById('statusMasse');
-  const statusText=document.getElementById('statusMasseText');
-  status.classList.add('visible');
-  statusText.textContent='Lecture du CSV…';
-
-  const reader=new FileReader();
-  reader.onload=function(e){
-    try{
-      const text=e.target.result.replace(/^\uFEFF/,''); // BOM
-      const lines=text.split('\n').map(l=>l.trim()).filter(l=>l);
-      if(lines.length<2)throw new Error('Fichier CSV vide ou invalide');
-
-      // Détecter séparateur (; ou ,)
-      const sep=lines[0].includes(';')?';':',';
-      const headers=lines[0].split(sep);
-
-      // Chercher les colonnes par nom (flexible)
-      const iCode=headers.findIndex(h=>/code/i.test(h));
-      const iName=headers.findIndex(h=>/nom/i.test(h));
-      const iYear=headers.findIndex(h=>/cumul|annee|2026|renta.+cumul/i.test(h));
-      // Accepte 'Renta mois', 'Renta mai 2026', 'Renta juin 2026', etc.
-      const MOIS=/janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre|mois/i;
-      const iMonth=headers.findIndex((h,i)=>MOIS.test(h)&&i!==iYear&&!/cumul/i.test(h));
-
-      if(iCode<0)throw new Error('Colonne "Code magasin" manquante');
-      if(iYear<0)throw new Error('Colonne "Renta cumul" manquante');
-      if(iMonth<0)throw new Error('Colonne renta mensuelle manquante (ex: Renta mai 2026)');
-
-      let importedSecteur=null;
-      const parsed=[];
-      lines.slice(1).forEach(line=>{
-        const cols=line.split(sep);
-        if(cols.length<3)return;
-        const codeRaw=cols[iCode].trim();
-        const name=iName>=0?cols[iName].trim():'';
-        const rentaA=parseFloat(cols[iYear].replace(',','.'));
-        const rentaM=parseFloat(cols[iMonth].replace(',','.'));
-        if(codeRaw==='SECTEUR CG'||codeRaw==='SECTEUR'){
-          if(!isNaN(rentaA)&&!isNaN(rentaM)) importedSecteur={renta_annee:rentaA,renta_mois:rentaM};
-          return;
-        }
-        const code=parseInt(codeRaw);
-        if(!isNaN(code)&&!isNaN(rentaA)&&!isNaN(rentaM)){
-          parsed.push({code,name:name||(STORES.find(s=>s.code===code)?.name||''),renta_annee:rentaA,renta_mois:rentaM});
-        }
-      });
-
-      if(!parsed.length)throw new Error('Aucune donnée valide trouvée');
-
-      masseSecteur=importedSecteur;
-      masseData=[...parsed].sort((a,b)=>a.code-b.code);
-      const display=[...parsed].sort((a,b)=>a.renta_annee-b.renta_annee);
-      renderMasseTable(display, importedSecteur||null);
-      updateMasseCards(parsed, file.name.replace('.csv',''), importedSecteur||null);
-      document.getElementById('btnExportMasse').disabled=false;
-      document.getElementById('masseDate').textContent='Importé le '+new Date().toLocaleDateString('fr-FR')+' — '+file.name;
-      document.getElementById('csvDropTitle').textContent='✓ '+file.name;
-
-      statusText.textContent='✓ '+parsed.length+' magasins importés.';
-      setTimeout(()=>status.classList.remove('visible'),2500);
-
-    }catch(err){
-      statusText.textContent='⚠ '+err.message;
-    }
-  };
-  reader.onerror=()=>{document.getElementById('statusMasseText').textContent='⚠ Erreur de lecture du fichier';};
-  reader.readAsText(file,'UTF-8');
-}
-
-// ══════════════════════════════════
-// PARAMÉTRAGE
 // ══════════════════════════════════
 function renderParamGrid() {
   document.getElementById('paramTitle').value=HUB_TITLE;
@@ -599,6 +654,161 @@ function dlCSV(content,filename){
   a.href=url;a.download=filename;
   document.body.appendChild(a);a.click();
   document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+
+// ══════════════════════════════════
+// LYLEOO
+// ══════════════════════════════════
+let lyleooData = [];
+
+// Mapping nom Lyleoo → code OC
+const LYLEOO_MAP = {
+  "VITROLLES":1062, "ANNECY":1032, "ANNEMASSE":1038,
+  "GRAND EPAGNY":1077, "GRENOBLE":1017,
+  "LYON BOURSE":1009, "BOURSE":1009,
+  "MARSEILLE PRADO":1045,
+  "SAINT BONNET DE MURE":1079, "SAINT BONNET":1079,
+  "SAINT ETIENNE MONTHIEU":1083, "MONTHIEU":1083,
+  "SAINT ETIENNE":1024,
+  "SAINT MARTIN D HERES":1090, "SMDH":1090,
+  "SEYSSINS":1093,
+  "MARSEILLE LA VALENTINE":1064,
+  "LYON PERRACHE":1068, "PERRACHE":1068,
+  "LYON PART DIEU":1011, "PART DIEU":1011,
+  "LYON LES FRERES LUMIERE":1073, "FRERES LUMIERE":1073,
+  "LYON REPUBLIQUE":1111,
+  "MARSEILLE ROME":1018,
+  "MEYLAN":1060,
+};
+
+function findCode(name) {
+  function normalize(s){
+    return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+             .replace(/[^A-Z0-9 ]/g," ").replace(/\s+/g," ").trim();
+  }
+  const clean = normalize(name.replace(/^OPTICAL CENTER/i,"").toUpperCase());
+  const entries = Object.entries(LYLEOO_MAP);
+  // 1. Correspondance exacte d'abord
+  for(const [key,code] of entries){
+    const k = normalize(key.toUpperCase());
+    if(clean === k) return code;
+  }
+  // 2. Le nom contient exactement la clé (mot entier)
+  for(const [key,code] of entries){
+    const k = normalize(key.toUpperCase());
+    const regex = new RegExp("\\b" + k.replace(/ /g,"\\s+") + "\\b");
+    if(regex.test(clean)) return code;
+  }
+  return null;
+}
+
+function parseLyleoo() {
+  const raw = document.getElementById('lyleooInput').value.trim();
+  if(!raw){ alert("Collez d'abord les données Lyleoo"); return; }
+
+  const status = document.getElementById('statusLyleoo');
+  const statusText = document.getElementById('statusLyleooText');
+  status.classList.add('visible');
+  statusText.textContent = 'Analyse en cours…';
+
+  const lines = raw.split('\n').map(l=>l.trim()).filter(l=>l);
+  const stores = {};
+  let currentStore = null;
+  let periode = '';
+
+  lines.forEach(line => {
+    // Détecter la période
+    if(/janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre/i.test(line) && /20\d\d/i.test(line)) {
+      periode = line.replace(/voir le détail/i,'').trim();
+    }
+    // Détecter ligne magasin (contient "OPTICAL CENTER")
+    if(/OPTICAL CENTER/i.test(line)) {
+      const cols = line.split('\t');
+      const name = cols[0].trim();
+      const code = findCode(name) || name;
+      const storeName = STORES.find(s=>s.code===code)?.name || name.replace(/^OPTICAL CENTER\s*[-–]?\s*/i,'');
+      currentStore = code;
+      stores[code] = {
+        code, name: storeName,
+        crees: parseInt(cols[1])||0,
+        soumis_classic: parseInt(cols[2])||0,
+        soumis_express: parseInt(cols[3])||0,
+        soumis: (parseInt(cols[2])||0)+(parseInt(cols[3])||0),
+        valides: parseInt(cols[4])||0,
+        refuses: parseInt(cols[5])||0,
+      };
+    }
+    // Ligne totaux — ignorer
+  });
+
+  lyleooData = Object.values(stores).filter(s=>typeof s.code==='number').sort((a,b)=>b.valides-a.valides);
+
+  if(!lyleooData.length){ statusText.textContent='⚠ Aucun magasin reconnu — vérifiez le format'; return; }
+
+  renderLyleooTable(lyleooData);
+  updateLyleooCards(lyleooData);
+  document.getElementById('btnExportLyleoo').disabled = false;
+  document.getElementById('lyleooDate').textContent = 'Période : ' + (periode||'—') + ' — ' + new Date().toLocaleDateString('fr-FR');
+  statusText.textContent = '✓ ' + lyleooData.length + ' magasins analysés.';
+  setTimeout(()=>status.classList.remove('visible'), 2500);
+}
+
+function renderLyleooTable(data) {
+  document.getElementById('lyleooBody').innerHTML = data.map((s,i) => {
+    const taux = s.soumis > 0 ? (s.valides/s.soumis*100).toFixed(0)+'%' : '—';
+    const tauxC = s.soumis > 0 ? (s.valides/s.soumis >= 0.95 ? 'c-green' : s.valides/s.soumis >= 0.80 ? 'c-orange' : 'c-red') : '';
+    const rc = i<3?'rang-top':i>=data.length-3?'rang-bot':'';
+    const refC = s.refuses > 0 ? 'c-red' : '';
+    return `<tr>
+      <td><span class="rang ${rc}">${i+1}</span></td>
+      <td class="code-cell">${s.code}</td>
+      <td class="name-cell">${s.name}</td>
+      <td>${s.crees}</td>
+      <td>${s.soumis}</td>
+      <td><strong class="c-green">${s.valides}</strong></td>
+      <td class="${refC}">${s.refuses}</td>
+      <td><span class="${tauxC}">${taux}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function updateLyleooCards(data) {
+  document.getElementById('lyleoCount').textContent = data.length + ' / 19';
+  document.getElementById('lyleoCreés').textContent = data.reduce((a,s)=>a+s.crees,0);
+  document.getElementById('lyleoValidés').textContent = data.reduce((a,s)=>a+s.valides,0);
+  document.getElementById('lyleoRefusés').textContent = data.reduce((a,s)=>a+s.refuses,0);
+  // Express
+  const expressStores = data.filter(s=>s.soumis_express>0);
+  if(expressStores.length){
+    document.getElementById('lyleoExpress').textContent =
+      expressStores.map(s=>s.name+' ('+s.soumis_express+')').join(' · ');
+  } else {
+    document.getElementById('lyleoExpress').textContent = 'Aucun';
+    document.getElementById('lyleoExpress').style.color = 'var(--muted)';
+  }
+}
+
+function resetLyleoo() {
+  lyleooData = [];
+  document.getElementById('lyleooInput').value = '';
+  document.getElementById('lyleooBody').innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🔵</div>Collez les données Lyleoo et cliquez sur Analyser</div></td></tr>';
+  document.getElementById('lyleoCount').textContent = '—';
+  document.getElementById('lyleoCreés').textContent = '—';
+  document.getElementById('lyleoValidés').textContent = '—';
+  document.getElementById('lyleoRefusés').textContent = '—';
+  document.getElementById('lyleoExpress').textContent = '—';
+  document.getElementById('lyleooDate').textContent = '';
+  document.getElementById('btnExportLyleoo').disabled = true;
+  document.getElementById('statusLyleoo').classList.remove('visible');
+}
+
+function exportLyleooCSV() {
+  const sorted = [...lyleooData].sort((a,b)=>a.code-b.code);
+  let csv = 'Code magasin;Nom magasin;Nombre de Lyleoo\n';
+  sorted.forEach(s => {
+    csv += `${s.code};${s.name};${s.valides}\n`;
+  });
+  dlCSV(csv, 'lyleoo-'+new Date().toISOString().slice(0,10)+'.csv');
 }
 
 // ══════════════════════════════════
