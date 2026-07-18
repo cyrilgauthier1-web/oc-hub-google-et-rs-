@@ -180,8 +180,8 @@ tbody tr:hover td{background:var(--surface2);}
     <button class="btn btn-secondary" onclick="resetMasse()" style="color:var(--red);border-color:var(--red);">↺ Initialiser</button>
     <button class="btn btn-secondary" onclick="exportMasseCSV()" id="btnExportMasse" disabled>⬇ CSV</button>
   </div>
-  <div class="dropzone" id="csvDropzone" onclick="document.getElementById('fileInput').click()">
-    <input type="file" id="fileInput" accept=".xlsx,.csv" onchange="importFile(this.files[0])">
+  <div class="dropzone" id="csvDropzone" onclick="document.getElementById('fileInput').click()" style="cursor:pointer;">
+    <input type="file" id="fileInput" accept=".xlsx,.csv" onchange="importFile(this.files[0])" style="display:none;">
     <div class="drop-icon">📊</div>
     <div class="drop-title" id="csvDropTitle">Glisser le fichier Excel T12 figé ici</div>
     <div class="drop-sub">ou cliquer · .xlsx</div>
@@ -351,6 +351,25 @@ function loadAvis() {
   status.classList.add('visible');
   statusText.textContent='Chargement…';
 
+  // Charger depuis localStorage si disponible
+  const saved = localStorage.getItem('oc_avis');
+  if(saved) {
+    try {
+      avisData = JSON.parse(saved);
+      const display = [...avisData].sort((a,b)=>b.count-a.count);
+      renderAvisTable(display);
+      updateAvisCards(avisData);
+      document.getElementById('btnExportAvis').disabled=false;
+      const savedDate = localStorage.getItem('oc_avis_date')||'';
+      document.getElementById('avisDate').textContent = savedDate;
+      document.getElementById('lastSync').textContent = HUB_AR+' · '+(localStorage.getItem('oc_avis_sync')||'—');
+      statusText.textContent='✓ Données restaurées.';
+      setTimeout(()=>status.classList.remove('visible'),1500);
+      btn.disabled=false;
+      return;
+    } catch(e) {}
+  }
+
   avisData = AVIS_SNAPSHOT.map(s => {
     const store = STORES.find(x=>x.code===s.code);
     return {...s, name:store?.name||'', place:store?.place||''};
@@ -362,6 +381,12 @@ function loadAvis() {
   updateAvisCards(avisData);
   document.getElementById('btnExportAvis').disabled=false;
   document.getElementById('avisDate').textContent='';
+  // Sauvegarder dans localStorage
+  try {
+    localStorage.setItem('oc_avis', JSON.stringify(avisData));
+    localStorage.setItem('oc_avis_date', '');
+    localStorage.setItem('oc_avis_sync', HUB_AR+' · '+new Date().toLocaleDateString('fr-FR'));
+  } catch(e) {}
   document.getElementById('lastSync').textContent=HUB_AR+' · 17/07/2026';
   statusText.textContent='✓ 19 magasins chargés.';
   setTimeout(()=>status.classList.remove('visible'),2000);
@@ -475,7 +500,9 @@ function importExcel(file) {
       const periode = mMatch ? MOIS_FR[parseInt(mMatch[2])] + ' ' + mMatch[1] : file.name.replace(/\.xlsx?$/i,'');
       updateMasseCards(parsed, periode, masseSecteur);
       document.getElementById('btnExportMasse').disabled = false;
-      document.getElementById('masseDate').textContent = 'Importé le ' + new Date().toLocaleDateString('fr-FR') + ' — ' + file.name;
+      const dateImport = 'Importé le ' + new Date().toLocaleDateString('fr-FR') + ' — ' + file.name;
+      document.getElementById('masseDate').textContent = dateImport;
+      try { localStorage.setItem('oc_masse', JSON.stringify({stores:masseData, secteur:masseSecteur, periode:periode, date:dateImport})); } catch(e) {}
       statusText.textContent = '✓ ' + parsed.length + ' magasins extraits.';
       setTimeout(() => status.classList.remove('visible'), 2500);
 
@@ -492,7 +519,22 @@ function importExcel(file) {
 // MASSE — tri renta cumul croissant (meilleur = plus bas)
 // ══════════════════════════════════
 function initMasse() {
-  // Pas de données par défaut — glisser le fichier Excel T12 figé
+  // Restaurer depuis localStorage si disponible
+  const saved = localStorage.getItem('oc_masse');
+  if(saved) {
+    try {
+      const data = JSON.parse(saved);
+      masseData = data.stores;
+      masseSecteur = data.secteur;
+      const display = [...masseData].sort((a,b)=>a.renta_annee-b.renta_annee);
+      renderMasseTable(display, masseSecteur);
+      updateMasseCards(masseData, data.periode||'—', masseSecteur);
+      document.getElementById('btnExportMasse').disabled = false;
+      document.getElementById('masseDate').textContent = data.date||'';
+      document.getElementById('csvDropTitle').textContent = '✓ Données chargées — glisser pour mettre à jour';
+      return;
+    } catch(e) {}
+  }
   document.getElementById('masseBody').innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📊</div>Glissez votre fichier Excel T12 figé pour charger vos données</div></td></tr>';
 }
 
@@ -536,6 +578,7 @@ function updateMasseCards(data,periode,secteur) {
 
 function resetMasse() {
   masseData = []; masseSecteur = null;
+  try { localStorage.removeItem('oc_masse'); } catch(e) {}
   document.getElementById('masseBody').innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">💰</div>Glissez le fichier Excel T12 figé pour charger les données</div></td></tr>';
   document.getElementById('masseCount').textContent = '—';
   document.getElementById('masseAvgYear').textContent = '—';
