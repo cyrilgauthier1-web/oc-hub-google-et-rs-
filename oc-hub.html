@@ -38,7 +38,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24
 .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
 
 /* PANELS */
-.panel{display:none;padding:24px;max-width:1080px;margin:0 auto;}
+.panel{display:none;padding:24px 28px;width:100%;}
 .panel.active{display:block;}
 
 /* TOOLBAR */
@@ -61,13 +61,13 @@ nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24
 @keyframes spin{to{transform:rotate(360deg);}}
 
 /* CARDS */
-.cards{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
+.cards{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;width:100%;}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;min-width:120px;flex:1;}
 .card-label{font-size:0.65rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:5px;}
 .card-val{font-size:1.5rem;font-weight:700;color:var(--ink);}
 
 /* TABLE */
-.table-wrap{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;}
+.table-wrap{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;width:100%;clear:both;}
 table{width:100%;border-collapse:collapse;font-size:0.85rem;}
 thead th{text-align:left;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);padding:11px 14px;background:var(--surface2);border-bottom:1px solid var(--border);white-space:nowrap;}
 tbody td{padding:13px 14px;border-bottom:1px solid var(--border);}
@@ -205,7 +205,7 @@ tbody tr:hover td{background:var(--surface2);}
 <!-- ══════════ LYLEOO ══════════ -->
 <div class="panel" id="panel-lyleoo">
   <div class="toolbar">
-    <h2>Lyleoo — Dossiers mutuelle</h2>
+    <h2>Lyleoo</h2>
     <button class="btn btn-secondary" onclick="resetLyleoo()" style="color:var(--red);border-color:var(--red);">↺ Initialiser</button>
     <button class="btn btn-secondary" onclick="exportLyleooCSV()" id="btnExportLyleoo" disabled>⬇ CSV</button>
   </div>
@@ -361,7 +361,7 @@ function loadAvis() {
   renderAvisTable(display);
   updateAvisCards(avisData);
   document.getElementById('btnExportAvis').disabled=false;
-  document.getElementById('avisDate').textContent='Snapshot 17/07/2026 — actualisation via Claude.ai';
+  document.getElementById('avisDate').textContent='';
   document.getElementById('lastSync').textContent=HUB_AR+' · 17/07/2026';
   statusText.textContent='✓ 19 magasins chargés.';
   setTimeout(()=>status.classList.remove('visible'),2000);
@@ -470,7 +470,10 @@ function importExcel(file) {
       masseData = [...parsed].sort((a, b) => a.code - b.code);
       const display = [...parsed].sort((a, b) => a.renta_annee - b.renta_annee);
       renderMasseTable(display, masseSecteur);
-      updateMasseCards(parsed, file.name.replace(/\.xlsx?$/i, ''), masseSecteur);
+      const MOIS_FR = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+      const mMatch = file.name.match(/(\d{4})(\d{2})/);
+      const periode = mMatch ? MOIS_FR[parseInt(mMatch[2])] + ' ' + mMatch[1] : file.name.replace(/\.xlsx?$/i,'');
+      updateMasseCards(parsed, periode, masseSecteur);
       document.getElementById('btnExportMasse').disabled = false;
       document.getElementById('masseDate').textContent = 'Importé le ' + new Date().toLocaleDateString('fr-FR') + ' — ' + file.name;
       statusText.textContent = '✓ ' + parsed.length + ' magasins extraits.';
