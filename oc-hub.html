@@ -314,32 +314,8 @@ const AVIS_SNAPSHOT = [
   {code:1111,rating:4.7,count:201},
 ];
 
-// MASSE T12 juin 2026 — source : T12_RENTASAL_France_202606_fige_.xlsx
-const MASSE_SNAPSHOT = {
-  periode:"Juin 2026", date_source:"17/07/2026",
-  secteur:{renta_annee:0.3352, renta_mois:0.3238},
-  stores:[
-    {code:1009,renta_annee:0.2704,renta_mois:0.1779},
-    {code:1011,renta_annee:0.2859,renta_mois:0.2471},
-    {code:1017,renta_annee:0.3189,renta_mois:0.3311},
-    {code:1018,renta_annee:0.5244,renta_mois:0.5738},
-    {code:1024,renta_annee:0.4121,renta_mois:0.4068},
-    {code:1032,renta_annee:0.2776,renta_mois:0.2469},
-    {code:1038,renta_annee:0.2977,renta_mois:0.2236},
-    {code:1045,renta_annee:0.3413,renta_mois:0.4059},
-    {code:1060,renta_annee:0.3407,renta_mois:0.2569},
-    {code:1062,renta_annee:0.3875,renta_mois:0.4846},
-    {code:1064,renta_annee:0.3770,renta_mois:0.4204},
-    {code:1068,renta_annee:0.4087,renta_mois:0.4645},
-    {code:1073,renta_annee:0.3154,renta_mois:0.2825},
-    {code:1077,renta_annee:0.2311,renta_mois:0.2464},
-    {code:1079,renta_annee:0.3792,renta_mois:0.3899},
-    {code:1083,renta_annee:0.3773,renta_mois:0.3451},
-    {code:1090,renta_annee:0.2833,renta_mois:0.2986},
-    {code:1093,renta_annee:0.3014,renta_mois:0.3196},
-    {code:1111,renta_annee:0.5142,renta_mois:0.5305},
-  ]
-};
+// Aucune donnée embarquée — glisser le fichier Excel T12 figé
+const MASSE_SNAPSHOT = null;
 
 // ══════════════════════════════════
 // STATE — chargé depuis localStorage si dispo
@@ -518,17 +494,8 @@ function importExcel(file) {
 // MASSE — tri renta cumul croissant (meilleur = plus bas)
 // ══════════════════════════════════
 function initMasse() {
-  const raw=MASSE_SNAPSHOT.stores.map(s=>{
-    const store=STORES.find(x=>x.code===s.code);
-    return {...s,name:store?.name||''};
-  });
-  masseData=[...raw].sort((a,b)=>a.code-b.code);
-  const display=[...raw].sort((a,b)=>a.renta_annee-b.renta_annee);
-  renderMasseTable(display, MASSE_SNAPSHOT.secteur);
-  updateMasseCards(raw, MASSE_SNAPSHOT.periode, MASSE_SNAPSHOT.secteur);
-  document.getElementById('btnExportMasse').disabled=false;
-  document.getElementById('masseDate').textContent=
-    '📌 Données embarquées : T12 '+MASSE_SNAPSHOT.periode+' (éd. '+MASSE_SNAPSHOT.date_source+') — glisser un CSV pour mettre à jour';
+  // Pas de données par défaut — glisser le fichier Excel T12 figé
+  document.getElementById('masseBody').innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📊</div>Glissez votre fichier Excel T12 figé pour charger vos données</div></td></tr>';
 }
 
 function rentaC(v){return v<=0.28?'c-green':v<=0.32?'c-orange':'c-red';}
@@ -629,8 +596,7 @@ function saveParams() {
   } catch(e){}
 
   document.getElementById('headerTitle').textContent=HUB_TITLE;
-  // Recharger les données avec nouveaux noms
-  loadAvis(); initMasse();
+  initMasse();
   alert('✓ Paramètres enregistrés. Les onglets ont été mis à jour.');
 }
 
@@ -816,7 +782,6 @@ function exportLyleooCSV() {
 // ══════════════════════════════════
 window.addEventListener('DOMContentLoaded',()=>{
   loadState();
-  loadAvis();
   initMasse();
 });
 </script>
