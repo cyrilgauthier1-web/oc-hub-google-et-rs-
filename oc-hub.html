@@ -163,7 +163,6 @@ tbody tr:hover td{background:var(--surface2);}
     <div class="card"><div class="card-label">Total avis</div><div class="card-val" id="totalAvis">—</div></div>
     <div class="card"><div class="card-label">≥ 4.5 ⭐</div><div class="card-val c-green" id="countHigh">—</div></div>
     <div class="card"><div class="card-label">&lt; 4.3 ⭐</div><div class="card-val c-red" id="countLow">—</div></div>
-  </div>
   <div class="table-wrap">
     <table>
       <thead><tr><th>#</th><th>Code</th><th>Magasin</th><th>Note</th><th>Nb avis ↓</th><th>Fiche</th></tr></thead>
@@ -171,6 +170,7 @@ tbody tr:hover td{background:var(--surface2);}
     </table>
   </div>
   <div class="last-update" id="avisDate"></div>
+</div>
 </div>
 
 <!-- ══════════ MASSE SALARIALE ══════════ -->
@@ -180,17 +180,12 @@ tbody tr:hover td{background:var(--surface2);}
     <button class="btn btn-secondary" onclick="resetMasse()" style="color:var(--red);border-color:var(--red);">↺ Initialiser</button>
     <button class="btn btn-secondary" onclick="exportMasseCSV()" id="btnExportMasse" disabled>⬇ CSV</button>
   </div>
-
   <div class="dropzone" id="csvDropzone" onclick="document.getElementById('fileInput').click()">
     <input type="file" id="fileInput" accept=".xlsx,.csv" onchange="importFile(this.files[0])">
     <div class="drop-icon">📊</div>
     <div class="drop-title" id="csvDropTitle">Glisser le fichier Excel T12 figé ici</div>
-    <div class="drop-sub">ou cliquer · .xlsx · Chrome en local ou GitHub Pages</div>
+    <div class="drop-sub">ou cliquer · .xlsx</div>
   </div>
-    <div class="drop-title">Données T12 Juin 2026 chargées</div>
-    <div class="drop-sub">Mise à jour mensuelle : envoyer le fichier Excel dans Claude.ai</div>
-  </div>
-
   <div class="status" id="statusMasse"><div class="spinner"></div><span id="statusMasseText"></span></div>
   <div class="cards">
     <div class="card"><div class="card-label">Magasins</div><div class="card-val" id="masseCount">—</div></div>
