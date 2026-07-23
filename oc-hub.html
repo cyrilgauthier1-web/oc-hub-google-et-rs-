@@ -428,42 +428,85 @@ function findAvisCode(name) {
 
 function parseAvis() {
   const raw = document.getElementById('avisInput').value.trim();
-  if(!raw) { alert("Collez d'abord les données Google Maps"); return; }
+  if(!raw) { alert("Collez les données Google Maps"); return; }
 
   const status = document.getElementById('statusAvis');
   const statusText = document.getElementById('statusAvisText');
   status.classList.add('visible');
-  statusText.textContent = 'Analyse en cours…';
+  statusText.textContent = 'Analyse…';
 
+  // Table de correspondance directe nom Google → {code, nom OC}
+  const MAP = [
+    {pattern:/MONTHIEU/i,           code:1083, name:"Saint-Étienne - Monthieu"},
+    {pattern:/SAINT.ETIENNE/i,      code:1024, name:"Saint-Étienne"},
+    {pattern:/SAINT.MARTIN/i,       code:1090, name:"Saint-Martin-d'Hères"},
+    {pattern:/SEYSSINS/i,           code:1093, name:"Seyssins"},
+    {pattern:/MEYLAN/i,             code:1060, name:"Meylan"},
+    {pattern:/GRENOBLE/i,           code:1017, name:"Grenoble"},
+    {pattern:/ANNEMASSE/i,          code:1038, name:"Annemasse"},
+    {pattern:/EPAGNY/i,             code:1077, name:"Grand Épagny"},
+    {pattern:/ANNECY/i,             code:1032, name:"Annecy"},
+    {pattern:/VITROLLES/i,          code:1062, name:"Vitrolles"},
+    {pattern:/MARSEILLE.ROME|ROME/i,code:1018, name:"Marseille - Rome"},
+    {pattern:/VALENTINE/i,          code:1064, name:"Marseille - La Valentine"},
+    {pattern:/PRADO/i,              code:1045, name:"Marseille - Prado"},
+    {pattern:/REPUBLIQUE/i,         code:1111, name:"Lyon - République"},
+    {pattern:/PERRACHE/i,           code:1068, name:"Lyon - Perrache"},
+    {pattern:/SAINT.BONNET/i,       code:1079, name:"Saint-Bonnet-de-Mure"},
+    {pattern:/BOURSE/i,             code:1009, name:"Lyon - Bourse"},
+    {pattern:/LUMIERE|LUMIÈRE/i,    code:1073, name:"Lyon - Frères Lumière"},
+    {pattern:/PART.DIEU/i,          code:1011, name:"Lyon - Part-Dieu"},
+  ];
+
+  // Trouver le place_id depuis DEFAULT_STORES
+  function getPlace(code) {
+    const s = DEFAULT_STORES.find(x=>x.code===code);
+    return s ? s.place : '';
+  }
+
+  console.log("=== parseAvis START ===");
+  console.log("Lignes reçues:", raw.split('\n').length);
   const lines = raw.split('\n').map(l=>l.trim()).filter(l=>l);
+  console.log("Lignes filtrées:", lines.length);
+  console.log("Première ligne:", lines[0]);
   const results = [];
-  let i = 0;
+  const seen = new Set();
 
-  while(i < lines.length) {
+  for(let i=0; i<lines.length; i++) {
     const line = lines[i];
-    // Ligne magasin : contient "Optical Center" ou "Opticien"
-    if(/optical center|opticien/i.test(line) && line.length > 15) {
-      const name = line;
-      const code = findAvisCode(name);
-      const store = STORES.find(s=>parseInt(s.code)===parseInt(code));
-      // Chercher note et nb avis dans les lignes suivantes
-      let rating = null, count = null;
-      for(let j=i+1; j<Math.min(i+5, lines.length); j++) {
-        const rMatch = lines[j].match(/^(\d[,\.]\d)$/);
-        const cMatch = lines[j].match(/^\((\d+)\)$/);
-        if(rMatch) rating = parseFloat(rMatch[1].replace(',','.'));
-        if(cMatch) count = parseInt(cMatch[1]);
-        if(rating && count) break;
-      }
-      if(code && rating && count && store) {
-        results.push({code, name:store.name, place:store.place||'', rating, count});
-      }
+    if(line.length < 15) continue; // ignorer "Opticien", "Note"
+
+    // Trouver le magasin correspondant (ordre important : MONTHIEU avant SAINT ETIENNE)
+    let matched = null;
+    for(const m of MAP) {
+      if(m.pattern.test(line)) { matched = m; break; }
     }
-    i++;
+    if(!matched || seen.has(matched.code)) continue;
+
+    // Chercher note et nb avis dans les 5 lignes suivantes
+    let rating = null, count = null;
+    for(let j=i+1; j<Math.min(i+6, lines.length); j++) {
+      // Souple : chercher note (ex: 4,2 ou 4.2) n'importe où dans la ligne
+      const rLine = lines[j].replace(/\s/g,'');
+      const rMatch = rLine.match(/^(\d)[,\.](\d)$/);
+      if(!rating && rMatch) rating = parseFloat(rMatch[1]+'.'+rMatch[2]);
+      // Souple : chercher (216) n'importe où dans la ligne
+      const cMatch = lines[j].match(/(\d+)/);
+      if(!count && /\(\d+\)/.test(lines[j]) && cMatch) count = parseInt(cMatch[1]);
+      if(rating && count) break;
+    }
+
+    if(rating && count) {
+      console.log("MATCH:", matched.code, matched.name, rating, count);
+      seen.add(matched.code);
+      results.push({code:matched.code, name:matched.name, place:getPlace(matched.code), rating, count});
+    } else if(matched) {
+      console.log("MATCHED but no rating/count:", matched.name, "rating=", rating, "count=", count);
+    }
   }
 
   if(!results.length) {
-    statusText.textContent = '⚠ Aucun magasin reconnu — vérifiez le texte collé';
+    statusText.textContent = '⚠ Aucun magasin reconnu';
     return;
   }
 
@@ -471,14 +514,17 @@ function parseAvis() {
   const display = [...avisData].sort((a,b)=>b.count-a.count);
   renderAvisTable(display);
   updateAvisCards(avisData);
-  document.getElementById('btnExportAvis').disabled=false;
-  document.getElementById('avisParseWrap').style.display='none';
-  document.getElementById('avisInput').value='';
-  const dateStr = 'Mis à jour le '+new Date().toLocaleDateString('fr-FR');
+  document.getElementById('btnExportAvis').disabled = false;
+  document.getElementById('avisParseWrap').style.display = 'none';
+  document.getElementById('avisInput').value = '';
+  const dateStr = 'Mis à jour le ' + new Date().toLocaleDateString('fr-FR');
   document.getElementById('avisDate').textContent = dateStr;
-  try { localStorage.setItem('oc_avis', JSON.stringify(avisData)); localStorage.setItem('oc_avis_date', dateStr); } catch(e) {}
-  statusText.textContent = '✓ '+results.length+' magasins analysés.';
-  setTimeout(()=>status.classList.remove('visible'),2500);
+  try {
+    localStorage.setItem('oc_avis', JSON.stringify(avisData));
+    localStorage.setItem('oc_avis_date', dateStr);
+  } catch(e) {}
+  statusText.textContent = '✓ ' + results.length + ' magasins analysés.';
+  setTimeout(()=>status.classList.remove('visible'), 2500);
 }
 
 function exportAvisCSV() {
