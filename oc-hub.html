@@ -154,8 +154,14 @@ tbody tr:hover td{background:var(--surface2);}
 <div class="panel active" id="panel-avis">
   <div class="toolbar">
     <h2>Avis Google</h2>
+    <button class="btn btn-secondary" onclick="resetAvis()" style="color:var(--red);border-color:var(--red);">↺ Initialiser</button>
     <button class="btn btn-secondary" onclick="exportAvisCSV()" id="btnExportAvis" disabled>⬇ CSV</button>
-    <button class="btn btn-primary" onclick="loadAvis()">⟳ Charger</button>
+    <button class="btn btn-primary" onclick="document.getElementById('avisParseWrap').style.display=document.getElementById('avisParseWrap').style.display==='none'?'':'none'">📋 Coller données</button>
+  </div>
+  <div id="avisParseWrap" style="display:none;margin-bottom:16px;">
+    <label style="font-size:0.78rem;color:var(--muted);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em;">Coller ici le texte copié depuis Google Maps (Cmd+V)</label>
+    <textarea id="avisInput" placeholder="Copier la liste depuis votre carnet Google Maps → coller ici…" style="width:100%;height:120px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--ink);font-size:0.82rem;padding:12px;resize:vertical;font-family:monospace;outline:none;"></textarea>
+    <button class="btn btn-primary" onclick="parseAvis()" style="margin-top:8px;">▶ Analyser</button>
   </div>
   <div class="status" id="statusAvis"><div class="spinner"></div><span id="statusAvisText"></span></div>
   <div class="cards">
@@ -321,7 +327,7 @@ let avisData = [], masseData = [], masseSecteur = null;
 function loadState() {
   try {
     const s = localStorage.getItem('oc_stores');
-    STORES = s ? JSON.parse(s) : DEFAULT_STORES.map(x=>({...x}));
+    STORES = s ? JSON.parse(s).map(x=>({...x,code:parseInt(x.code)})) : DEFAULT_STORES.map(x=>({...x}));
     HUB_TITLE = localStorage.getItem('oc_title') || DEFAULT_TITLE;
     HUB_AR    = localStorage.getItem('oc_ar')    || DEFAULT_AR;
   } catch(e) {
@@ -345,52 +351,6 @@ function switchTab(name) {
 // ══════════════════════════════════
 // AVIS — tri par nb avis décroissant
 // ══════════════════════════════════
-function loadAvis() {
-  const status=document.getElementById('statusAvis');
-  const statusText=document.getElementById('statusAvisText');
-  status.classList.add('visible');
-  statusText.textContent='Chargement…';
-
-  // Charger depuis localStorage si disponible
-  const saved = localStorage.getItem('oc_avis');
-  if(saved) {
-    try {
-      avisData = JSON.parse(saved);
-      const display = [...avisData].sort((a,b)=>b.count-a.count);
-      renderAvisTable(display);
-      updateAvisCards(avisData);
-      document.getElementById('btnExportAvis').disabled=false;
-      const savedDate = localStorage.getItem('oc_avis_date')||'';
-      document.getElementById('avisDate').textContent = savedDate;
-      document.getElementById('lastSync').textContent = HUB_AR+' · '+(localStorage.getItem('oc_avis_sync')||'—');
-      statusText.textContent='✓ Données restaurées.';
-      setTimeout(()=>status.classList.remove('visible'),1500);
-      btn.disabled=false;
-      return;
-    } catch(e) {}
-  }
-
-  avisData = AVIS_SNAPSHOT.map(s => {
-    const store = STORES.find(x=>x.code===s.code);
-    return {...s, name:store?.name||'', place:store?.place||''};
-  }).sort((a,b)=>a.code-b.code); // ordre code pour CSV
-
-  // Affichage : tri nb avis décroissant
-  const display = [...avisData].sort((a,b)=>b.count-a.count);
-  renderAvisTable(display);
-  updateAvisCards(avisData);
-  document.getElementById('btnExportAvis').disabled=false;
-  document.getElementById('avisDate').textContent='';
-  // Sauvegarder dans localStorage
-  try {
-    localStorage.setItem('oc_avis', JSON.stringify(avisData));
-    localStorage.setItem('oc_avis_date', '');
-    localStorage.setItem('oc_avis_sync', HUB_AR+' · '+new Date().toLocaleDateString('fr-FR'));
-  } catch(e) {}
-  document.getElementById('lastSync').textContent=HUB_AR+' · 17/07/2026';
-  statusText.textContent='✓ 19 magasins chargés.';
-  setTimeout(()=>status.classList.remove('visible'),2000);
-}
 
 function ratingC(r){return r>=4.5?'c-green':r<4.3?'c-red':'c-orange';}
 function stars(r){const f=Math.round(r);return'★'.repeat(f)+'☆'.repeat(5-f);}
@@ -416,6 +376,109 @@ function updateAvisCards(data) {
   document.getElementById('totalAvis').textContent=total.toLocaleString('fr-FR');
   document.getElementById('countHigh').textContent=data.filter(s=>s.rating>=4.5).length;
   document.getElementById('countLow').textContent=data.filter(s=>s.rating<4.3).length;
+}
+
+function resetAvis() {
+  avisData = [];
+  try { localStorage.removeItem('oc_avis'); } catch(e) {}
+  document.getElementById('avisBody').innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">⭐</div>Cliquez sur <strong>Coller données</strong> pour charger les avis</div></td></tr>';
+  document.getElementById('avgRating').textContent='—';
+  document.getElementById('totalAvis').textContent='—';
+  document.getElementById('countHigh').textContent='—';
+  document.getElementById('countLow').textContent='—';
+  document.getElementById('btnExportAvis').disabled=true;
+  document.getElementById('avisParseWrap').style.display='none';
+}
+
+// Mapping nom Google Maps → code OC
+const AVIS_MAP = {
+  "SAINT ETIENNE MONTHIEU":1083,
+  "SAINT ETIENNE":1024,
+  "SAINT MARTIN D HERES":1090,
+  "SEYSSINS":1093,
+  "MEYLAN":1060,
+  "GRENOBLE":1017,
+  "ANNEMASSE":1038,
+  "EPAGNY":1077,
+  "ANNECY":1032,
+  "VITROLLES":1062,
+  "MARSEILLE ROME":1018,
+  "MARSEILLE LA VALENTINE":1064, "VALENTINE":1064,
+  "MARSEILLE PRADO":1045, "PRADO":1045,
+  "LYON REPUBLIQUE":1111, "REPUBLIQUE":1111,
+  "LYON PERRACHE":1068, "PERRACHE":1068,
+  "SAINT BONNET DE MURE":1079, "SAINT BONNET":1079,
+  "LYON BOURSE":1009, "BOURSE":1009,
+  "LYON FRERES LUMIERE":1073, "LUMIERE":1073,
+  "LYON PART DIEU":1011, "PART DIEU":1011,
+};
+
+function findAvisCode(name) {
+  function norm(s) {
+    return s.normalize("NFD").replace(/[̀-ͯ]/g,"")
+            .replace(/[^A-Z0-9 ]/g," ").replace(/\s+/g," ").trim();
+  }
+  const clean = norm(name.toUpperCase());
+  const entries = Object.entries(AVIS_MAP).sort((a,b)=>b[0].length-a[0].length);
+  for(const [key,code] of entries) {
+    if(clean.includes(norm(key))) return code;
+  }
+  return null;
+}
+
+function parseAvis() {
+  const raw = document.getElementById('avisInput').value.trim();
+  if(!raw) { alert("Collez d'abord les données Google Maps"); return; }
+
+  const status = document.getElementById('statusAvis');
+  const statusText = document.getElementById('statusAvisText');
+  status.classList.add('visible');
+  statusText.textContent = 'Analyse en cours…';
+
+  const lines = raw.split('\n').map(l=>l.trim()).filter(l=>l);
+  const results = [];
+  let i = 0;
+
+  while(i < lines.length) {
+    const line = lines[i];
+    // Ligne magasin : contient "Optical Center" ou "Opticien"
+    if(/optical center|opticien/i.test(line) && line.length > 15) {
+      const name = line;
+      const code = findAvisCode(name);
+      const store = STORES.find(s=>parseInt(s.code)===parseInt(code));
+      // Chercher note et nb avis dans les lignes suivantes
+      let rating = null, count = null;
+      for(let j=i+1; j<Math.min(i+5, lines.length); j++) {
+        const rMatch = lines[j].match(/^(\d[,\.]\d)$/);
+        const cMatch = lines[j].match(/^\((\d+)\)$/);
+        if(rMatch) rating = parseFloat(rMatch[1].replace(',','.'));
+        if(cMatch) count = parseInt(cMatch[1]);
+        if(rating && count) break;
+      }
+      if(code && rating && count && store) {
+        results.push({code, name:store.name, place:store.place||'', rating, count});
+      }
+    }
+    i++;
+  }
+
+  if(!results.length) {
+    statusText.textContent = '⚠ Aucun magasin reconnu — vérifiez le texte collé';
+    return;
+  }
+
+  avisData = results.sort((a,b)=>a.code-b.code);
+  const display = [...avisData].sort((a,b)=>b.count-a.count);
+  renderAvisTable(display);
+  updateAvisCards(avisData);
+  document.getElementById('btnExportAvis').disabled=false;
+  document.getElementById('avisParseWrap').style.display='none';
+  document.getElementById('avisInput').value='';
+  const dateStr = 'Mis à jour le '+new Date().toLocaleDateString('fr-FR');
+  document.getElementById('avisDate').textContent = dateStr;
+  try { localStorage.setItem('oc_avis', JSON.stringify(avisData)); localStorage.setItem('oc_avis_date', dateStr); } catch(e) {}
+  statusText.textContent = '✓ '+results.length+' magasins analysés.';
+  setTimeout(()=>status.classList.remove('visible'),2500);
 }
 
 function exportAvisCSV() {
@@ -755,7 +818,9 @@ function parseLyleoo() {
   renderLyleooTable(lyleooData);
   updateLyleooCards(lyleooData);
   document.getElementById('btnExportLyleoo').disabled = false;
-  document.getElementById('lyleooDate').textContent = 'Période : ' + (periode||'—') + ' — ' + new Date().toLocaleDateString('fr-FR');
+  const lyleooDate = 'Période : ' + (periode||'—') + ' — ' + new Date().toLocaleDateString('fr-FR');
+  document.getElementById('lyleooDate').textContent = lyleooDate;
+  try { localStorage.setItem('oc_lyleoo', JSON.stringify({data:lyleooData, date:lyleooDate})); } catch(e) {}
   statusText.textContent = '✓ ' + lyleooData.length + ' magasins analysés.';
   setTimeout(()=>status.classList.remove('visible'), 2500);
 }
@@ -797,6 +862,7 @@ function updateLyleooCards(data) {
 
 function resetLyleoo() {
   lyleooData = [];
+  try { localStorage.removeItem('oc_lyleoo'); } catch(e) {}
   document.getElementById('lyleooInput').value = '';
   document.getElementById('lyleooBody').innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🔵</div>Collez les données Lyleoo et cliquez sur Analyser</div></td></tr>';
   document.getElementById('lyleoCount').textContent = '—';
@@ -824,6 +890,19 @@ function exportLyleooCSV() {
 window.addEventListener('DOMContentLoaded',()=>{
   loadState();
   initMasse();
+  // Restaurer Lyleoo
+  const savedLyleoo = localStorage.getItem('oc_lyleoo');
+  if(savedLyleoo) {
+    try {
+      const d = JSON.parse(savedLyleoo);
+      lyleooData = d.data;
+      const display = [...lyleooData].sort((a,b)=>b.valides-a.valides);
+      renderLyleooTable(display);
+      updateLyleooCards(lyleooData);
+      document.getElementById('btnExportLyleoo').disabled = false;
+      document.getElementById('lyleooDate').textContent = d.date||'';
+    } catch(e) {}
+  }
 });
 </script>
 </body>
